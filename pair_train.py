@@ -22,15 +22,10 @@ def get_obj_from_str(string, reload=False):
         importlib.reload(module_imp)
     return getattr(importlib.import_module(module, package=None), cls)
 
-
-
 def instantiate_from_config(config):
     if not "target" in config:
         raise KeyError("Expected key `target` to instantiate.")
     return get_obj_from_str(config["target"])(**config.get("params", dict()))
-
-
-
 
 
 if __name__ == "__main__":
@@ -77,11 +72,10 @@ if __name__ == "__main__":
     # ONLY MODIFY SETTING HERE
     device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
     print('device: ', device)
-    batch_size = 1 # 128
+    batch_size = 3 # 128
     learning_rate = 1e-5       # 256/512 lr=4.5e-6 from 71 epochs
-    img_size = 256
+    img_size = 128
     switch_weight = 0.1 # self-reconstruction : a2b/b2a = 10 : 1
-    
     
     save_path = '{}_{}_{}_pair'.format(args.dataset, args.ed, args.ne)    # model dir
     print(save_path)
@@ -92,7 +86,7 @@ if __name__ == "__main__":
 
 
     f = os.path.join(os.getcwd(), save_path, 'settingc_latest.pt')
-    config = OmegaConf.load('config_comb.yaml')
+    config = OmegaConf.load('/kaggle/working/VQ-I2I/config_comb.yaml')
     config.model.target = 'taming_comb.models.vqgan.VQModelCrossGAN_ADAIN'
     config.model.base_learning_rate = learning_rate
     config.model.params.embed_dim = args.ed
@@ -105,26 +99,32 @@ if __name__ == "__main__":
         ck = torch.load(f, map_location=device)
         model.load_state_dict(ck['model_state_dict'], strict=False)
     model = model.to(device)
+
+    # اگر بیش از یک GPU شناسایی شد، از DataParallel استفاده می‌کنیم
+    if torch.cuda.device_count() > 1:
+        print("Multiple GPUs detected, using DataParallel")
+        model = torch.nn.DataParallel(model)  # اینجا از DataParallel استفاده می‌کنیم
+
     model.train()
 
     # print(model.loss.discriminator)
     
-    opt_ae = torch.optim.Adam(list(model.encoder.parameters())+
-                                list(model.decoder_a.parameters())+
-                                list(model.decoder_b.parameters())+
-                                list(model.quantize.parameters())+
-                                list(model.quant_conv.parameters())+
-                                list(model.post_quant_conv.parameters())+
-                                list(model.style_enc_a.parameters())+
-                                list(model.style_enc_b.parameters())+
-                                list(model.mlp_a.parameters())+
-                                list(model.mlp_b.parameters()),
+    opt_ae = torch.optim.Adam(list(model.module.encoder.parameters()) + 
+                                list(model.module.decoder_a.parameters()) + 
+                                list(model.module.decoder_b.parameters()) + 
+                                list(model.module.quantize.parameters()) + 
+                                list(model.module.quant_conv.parameters()) + 
+                                list(model.module.post_quant_conv.parameters()) + 
+                                list(model.module.style_enc_a.parameters()) + 
+                                list(model.module.style_enc_b.parameters()) + 
+                                list(model.module.mlp_a.parameters()) + 
+                                list(model.module.mlp_b.parameters()),
                                 lr=learning_rate, betas=(0.5, 0.999))
     
-    opt_disc_a = torch.optim.Adam(model.loss_a.discriminator.parameters(),
+    opt_disc_a = torch.optim.Adam(model.module.loss_a.discriminator.parameters(),
                                 lr=learning_rate, betas=(0.5, 0.999))
     
-    opt_disc_b = torch.optim.Adam(model.loss_b.discriminator.parameters(),
+    opt_disc_b = torch.optim.Adam(model.module.loss_b.discriminator.parameters(),
                                 lr=learning_rate, betas=(0.5, 0.999))
 
     if(os.path.isfile(f)):
@@ -153,7 +153,6 @@ if __name__ == "__main__":
     iterations = len(train_data) // batch_size
     iterations = iterations + 1 if len(train_data) % batch_size != 0 else iterations
     
-    
     # torch.set_default_tensor_type('torch.cuda.FloatTensor')
     
     for epoch in range(args.epoch_start, args.epoch_end+1):
@@ -165,55 +164,50 @@ if __name__ == "__main__":
             ## Discriminator A
             opt_disc_a.zero_grad()
             
-            s_a = model.encode_style(dataA, label=1)
+            s_a = model.module.encode_style(dataA, label=1)
             fakeA, _, _ = model(dataB, label=0, cross=True, s_given=s_a)
 
             recA, qlossA, _ = model(dataA, label=1, cross=False)
             
-            b2a_loss, log = model.loss_a(_, dataA, fakeA, optimizer_idx=1, global_step=epoch,
+            b2a_loss, log = model.module.loss_a(_, dataA, fakeA, optimizer_idx=1, global_step=epoch,
                                     last_layer=None, split="train")
 
-            a_rec_d_loss, _ = model.loss_a(_, dataA, recA, optimizer_idx=1, global_step=epoch,
+            a_rec_d_loss, _ = model.module.loss_a(_, dataA, recA, optimizer_idx=1, global_step=epoch,
                                     last_layer=None, split="train")
             
             disc_a_loss = 0.8*b2a_loss + 0.2*a_rec_d_loss
             disc_a_loss.backward()
             opt_disc_a.step()
             
-            
             ## Discriminator B
             opt_disc_b.zero_grad()
             
-            s_b = model.encode_style(dataB, label=0)
+            s_b = model.module.encode_style(dataB, label=0)
             fakeB, _, s_b_sampled = model(dataA, label=1, cross=True, s_given=s_b)
 
             recB, qlossB, _ = model(dataB, label=0, cross=False)
             
-            a2b_loss, log = model.loss_b(_, dataB, fakeB, optimizer_idx=1, global_step=epoch,
+            a2b_loss, log = model.module.loss_b(_, dataB, fakeB, optimizer_idx=1, global_step=epoch,
                                     last_layer=None, split="train")
 
-            b_rec_d_loss, _ = model.loss_b(_, dataB, recB, optimizer_idx=1, global_step=epoch,
+            b_rec_d_loss, _ = model.module.loss_b(_, dataB, recB, optimizer_idx=1, global_step=epoch,
                                     last_layer=None, split="train")
             
-          
             disc_b_loss = 0.8*a2b_loss + 0.2*b_rec_d_loss
             disc_b_loss.backward()
             opt_disc_b.step()
-       
-
+        
             ## Generator 
             opt_ae.zero_grad()
 
-            aeloss_a, _ = model.loss_a(qlossA, dataA, recA, fake=fakeA, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
-                                    last_layer=model.get_last_layer(label=1), split="train")
-            
+            aeloss_a, _ = model.module.loss_a(qlossA, dataA, recA, fake=fakeA, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
+                                    last_layer=model.module.get_last_layer(label=1), split="train")
             
             # cross path with style a
             AtoBtoA, _, s_a_from_cross = model(fakeA, label=1, cross=False)
             
-
-            aeloss_b, _ = model.loss_b(qlossB, dataB, recB, fake=fakeB, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
-                                    last_layer=model.get_last_layer(label=0), split="train")
+            aeloss_b, _ = model.module.loss_b(qlossB, dataB, recB, fake=fakeB, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
+                                    last_layer=model.module.get_last_layer(label=0), split="train")
             
             # cross path with style b
             BtoAtoB, _, s_b_from_cross = model(fakeB, label=0, cross=False)
@@ -224,8 +218,8 @@ if __name__ == "__main__":
             style_loss = 0.5*style_a_loss + 0.5*style_b_loss
             
             # content loss
-            c_a, c_a_quan = model.encode_content(dataA)
-            c_b, c_b_quan = model.encode_content(dataB)
+            c_a, c_a_quan = model.module.encode_content(dataA)
+            c_b, c_b_quan = model.module.encode_content(dataB)
             content_loss = torch.mean(torch.abs(c_a.detach() - c_b)).to(device)
             content_quan_loss = torch.mean(torch.abs(c_a_quan - c_b_quan.detach())).to(device)
             content_loss = 0.5*content_loss + 0.5*content_quan_loss 
@@ -235,18 +229,14 @@ if __name__ == "__main__":
             cross_recons_loss_b = torch.mean(torch.abs(dataB.detach() - fakeB)).to(device)
             cross_recons_loss = 0.5*cross_recons_loss_a + 0.5*cross_recons_loss_b
 
-            
-            
             gen_loss = aeloss_a + aeloss_b + 3.0*cross_recons_loss + 0.5*(style_loss + content_loss) 
             gen_loss.backward()
             opt_ae.step()
-            
-            
 
             # compute mse loss b/w input and reconstruction
             data = torch.cat((dataA, dataB), 0).to(device)
             rec = torch.cat((recA, recB), 0).to(device)
-            recon_error = F.mse_loss( data, rec)
+            recon_error = F.mse_loss(data, rec)
 
             train_res_rec_error.append(recon_error.item())
             train_ae_a_error.append(aeloss_a.item())
