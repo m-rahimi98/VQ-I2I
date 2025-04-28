@@ -179,7 +179,7 @@ if __name__ == "__main__":
             disc_a_loss.backward()
             opt_disc_a.step()
             
-            ## Discriminator B
+           ## Discriminator B
             opt_disc_b.zero_grad()
             
             s_b = model.encode_style(dataB, label=0)
@@ -188,4 +188,121 @@ if __name__ == "__main__":
             recB, qlossB, _ = model(dataB, label=0, cross=False)
             
             a2b_loss, log = model.loss_b(_, dataB, fakeB, optimizer_idx=1, global_step=epoch,
-                                    last_layer_
+                                    last_layer=None, split="train")
+
+            b_rec_d_loss, _ = model.loss_b(_, dataB, recB, optimizer_idx=1, global_step=epoch,
+                                    last_layer=None, split="train")
+            
+          
+            disc_b_loss = 0.8*a2b_loss + 0.2*b_rec_d_loss
+            disc_b_loss.backward()
+            opt_disc_b.step()
+       
+
+            ## Generator 
+            opt_ae.zero_grad()
+
+            aeloss_a, _ = model.loss_a(qlossA, dataA, recA, fake=fakeA, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
+                                    last_layer=model.get_last_layer(label=1), split="train")
+            
+            
+            # cross path with style a
+            AtoBtoA, _, s_a_from_cross = model(fakeA, label=1, cross=False)
+            
+
+            aeloss_b, _ = model.loss_b(qlossB, dataB, recB, fake=fakeB, switch_weight=switch_weight, optimizer_idx=0, global_step=epoch,
+                                    last_layer=model.get_last_layer(label=0), split="train")
+            
+            # cross path with style b
+            BtoAtoB, _, s_b_from_cross = model(fakeB, label=0, cross=False)
+
+            # style loss
+            style_a_loss = torch.mean(torch.abs(s_a.detach() - s_a_from_cross)).to(device)
+            style_b_loss = torch.mean(torch.abs(s_b.detach() - s_b_from_cross)).to(device)
+            style_loss = 0.5*style_a_loss + 0.5*style_b_loss
+            
+            # content loss
+            c_a, c_a_quan = model.encode_content(dataA)
+            c_b, c_b_quan = model.encode_content(dataB)
+            content_loss = torch.mean(torch.abs(c_a.detach() - c_b)).to(device)
+            content_quan_loss = torch.mean(torch.abs(c_a_quan - c_b_quan.detach())).to(device)
+            content_loss = 0.5*content_loss + 0.5*content_quan_loss 
+
+            # cross reconstruction loss
+            cross_recons_loss_a = torch.mean(torch.abs(dataA.detach() - fakeA)).to(device)
+            cross_recons_loss_b = torch.mean(torch.abs(dataB.detach() - fakeB)).to(device)
+            cross_recons_loss = 0.5*cross_recons_loss_a + 0.5*cross_recons_loss_b
+
+            
+            
+            gen_loss = aeloss_a + aeloss_b + 3.0*cross_recons_loss + 0.5*(style_loss + content_loss) 
+            gen_loss.backward()
+            opt_ae.step()
+            
+            
+
+            # compute mse loss b/w input and reconstruction
+            data = torch.cat((dataA, dataB), 0).to(device)
+            rec = torch.cat((recA, recB), 0).to(device)
+            recon_error = F.mse_loss( data, rec)
+
+            train_res_rec_error.append(recon_error.item())
+            train_ae_a_error.append(aeloss_a.item())
+            train_ae_b_error.append(aeloss_b.item())
+            train_disc_a_error.append(disc_a_loss.item())
+            train_disc_b_error.append(disc_b_loss.item())
+            train_disc_a2b_error.append(a2b_loss.item())
+            train_disc_b2a_error.append(b2a_loss.item())
+            
+            train_style_a_loss.append(style_a_loss.item())
+            train_style_b_loss.append(style_b_loss.item())
+            
+            train_content_loss.append(content_loss.item())
+            train_cross_recons_loss.append(cross_recons_loss.item())
+
+
+            if (i+1) % 1000 == 0:
+                _rec  = 'epoch {}, {} iterations\n'.format(epoch, i+1)
+                _rec += '(A domain) ae_loss: {:8f}, disc_loss: {:8f}\n'.format(
+                            np.mean(train_ae_a_error[-1000:]), np.mean(train_disc_a_error[-1000:]))
+                _rec += '(B domain) ae_loss: {:8f}, disc_loss: {:8f}\n'.format(
+                            np.mean(train_ae_b_error[-1000:]), np.mean(train_disc_b_error[-1000:]))
+                _rec += 'A vs A2B loss: {:8f}, B vs B2A loss: {:8f}\n'.format(
+                            np.mean(train_disc_a2b_error[-1000:]), np.mean(train_disc_b2a_error[-1000:]))
+                _rec += 'recon_error: {:8f}\n\n'.format(
+                    np.mean(train_res_rec_error[-1000:]))
+                
+                _rec += 'style_a_loss: {:8f}\n\n'.format(
+                    np.mean(train_style_a_loss[-1000:]))
+                _rec += 'style_b_loss: {:8f}\n\n'.format(
+                    np.mean(train_style_b_loss[-1000:]))
+                
+                _rec += 'content_loss: {:8f}\n\n'.format(
+                    np.mean(train_content_loss[-1000:]))
+
+                _rec += 'cross_recons_loss: {:8f}\n\n'.format(
+                    np.mean(train_cross_recons_loss[-1000:]))
+
+                
+                print(_rec)
+                with open(os.path.join(os.getcwd(), save_path, 'loss.txt'), 'a') as f:
+                    f.write(_rec)
+                    f.close()
+
+        torch.save(
+            {
+                'model_state_dict': model.state_dict(),
+                'opt_ae_state_dict': opt_ae.state_dict(),
+                'opt_disc_a_state_dict': opt_disc_a.state_dict(),
+                'opt_disc_b_state_dict': opt_disc_b.state_dict()
+            }, os.path.join(os.getcwd(), save_path, 'settingc_latest.pt'))
+
+
+        if(epoch % 20 == 0 and epoch >= 20):
+            torch.save(
+                {
+                    'model_state_dict': model.state_dict(),
+                    'opt_ae_state_dict': opt_ae.state_dict(),
+                    'opt_disc_a_state_dict': opt_disc_a.state_dict(),
+                    'opt_disc_b_state_dict': opt_disc_b.state_dict()
+                }, os.path.join(os.getcwd(), save_path, 'settingc_n_{}.pt'.format(epoch)))
