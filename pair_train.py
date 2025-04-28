@@ -92,7 +92,7 @@ if __name__ == "__main__":
 
 
     f = os.path.join(os.getcwd(), save_path, 'settingc_latest.pt')
-    config = OmegaConf.load('config_comb.yaml')
+    config = OmegaConf.load('/kaggle/working/VQ-I2I/config_comb.yaml')
     config.model.target = 'taming_comb.models.vqgan.VQModelCrossGAN_ADAIN'
     config.model.base_learning_rate = learning_rate
     config.model.params.embed_dim = args.ed
