@@ -109,17 +109,17 @@ if __name__ == "__main__":
 
     # print(model.loss.discriminator)
     
-    opt_ae = torch.optim.Adam(list(model.encoder.parameters())+ 
-                                list(model.decoder_a.parameters())+ 
-                                list(model.decoder_b.parameters())+ 
-                                list(model.quantize.parameters())+ 
-                                list(model.quant_conv.parameters())+ 
-                                list(model.post_quant_conv.parameters())+ 
-                                list(model.style_enc_a.parameters())+ 
-                                list(model.style_enc_b.parameters())+ 
-                                list(model.mlp_a.parameters())+ 
-                                list(model.mlp_b.parameters()),
-                                lr=learning_rate, betas=(0.5, 0.999))
+    opt_ae = torch.optim.Adam(list(model.module.encoder.parameters()) +
+                            list(model.module.decoder_a.parameters()) + 
+                            list(model.module.decoder_b.parameters()) + 
+                            list(model.module.quantize.parameters()) + 
+                            list(model.module.quant_conv.parameters()) + 
+                            list(model.module.post_quant_conv.parameters()) + 
+                            list(model.module.style_enc_a.parameters()) + 
+                            list(model.module.style_enc_b.parameters()) + 
+                            list(model.module.mlp_a.parameters()) + 
+                            list(model.module.mlp_b.parameters()),
+                            lr=learning_rate, betas=(0.5, 0.999))
     
     opt_disc_a = torch.optim.Adam(model.loss_a.discriminator.parameters(),
                                 lr=learning_rate, betas=(0.5, 0.999))
