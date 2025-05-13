@@ -99,13 +99,22 @@ if __name__ == "__main__":
     config.model.z_channels = args.z_channel
     config.model.resolution = 256
     model = instantiate_from_config(config.model)
-    if(os.path.isfile(f)):
+
+    #changes
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs")
+        model = torch.nn.DataParallel(model)
+    
+    # اگر فایل checkpoint موجوده، state_dict رو لود کن
+    if os.path.isfile(f):
         print('load ' + f)
         ck = torch.load(f, map_location=device)
-        model.load_state_dict(ck['model_state_dict'], strict=False)
-    model = nn.DataParallel(model)
-    model = model.to(device)
-    model.train()
+        if isinstance(model, torch.nn.DataParallel):
+            model.module.load_state_dict(ck['model_state_dict'], strict=False)
+        else:
+            model.load_state_dict(ck['model_state_dict'], strict=False)
+    model.train() 
+    
 
     # print(model.loss.discriminator)
     
