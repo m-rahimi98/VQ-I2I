@@ -118,17 +118,34 @@ if __name__ == "__main__":
 
     # print(model.loss.discriminator)
     
+    # opt_ae = torch.optim.Adam(list(model.encoder.parameters())+
+    #                             list(model.decoder_a.parameters())+
+    #                             list(model.decoder_b.parameters())+
+    #                             list(model.quantize.parameters())+
+    #                             list(model.quant_conv.parameters())+
+    #                             list(model.post_quant_conv.parameters())+
+    #                             list(model.style_enc_a.parameters())+
+    #                             list(model.style_enc_b.parameters())+
+    #                             list(model.mlp_a.parameters())+
+    #                             list(model.mlp_b.parameters()),
+    #                             lr=learning_rate, betas=(0.5, 0.999))
+
+    # اگر مدل در DataParallel باشه، به model.module ارجاع بده
+    if isinstance(model, torch.nn.DataParallel):
+        model = model.module
+    
     opt_ae = torch.optim.Adam(list(model.encoder.parameters())+
-                                list(model.decoder_a.parameters())+
-                                list(model.decoder_b.parameters())+
-                                list(model.quantize.parameters())+
-                                list(model.quant_conv.parameters())+
-                                list(model.post_quant_conv.parameters())+
-                                list(model.style_enc_a.parameters())+
-                                list(model.style_enc_b.parameters())+
-                                list(model.mlp_a.parameters())+
-                                list(model.mlp_b.parameters()),
-                                lr=learning_rate, betas=(0.5, 0.999))
+                              list(model.decoder_a.parameters())+
+                              list(model.decoder_b.parameters())+
+                              list(model.quantize.parameters())+
+                              list(model.quant_conv.parameters())+
+                              list(model.post_quant_conv.parameters())+
+                              list(model.style_enc_a.parameters())+
+                              list(model.style_enc_b.parameters())+
+                              list(model.mlp_a.parameters())+
+                              list(model.mlp_b.parameters()),
+                              lr=learning_rate, betas=(0.5, 0.999))
+
     
     opt_disc_a = torch.optim.Adam(model.loss_a.discriminator.parameters(),
                                 lr=learning_rate, betas=(0.5, 0.999))
