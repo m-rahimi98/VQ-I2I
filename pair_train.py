@@ -104,6 +104,7 @@ if __name__ == "__main__":
         print('load ' + f)
         ck = torch.load(f, map_location=device)
         model.load_state_dict(ck['model_state_dict'], strict=False)
+    model = nn.DataParallel(model)
     model = model.to(device)
     model.train()
 
