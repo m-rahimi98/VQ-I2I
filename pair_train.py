@@ -90,9 +90,8 @@ if __name__ == "__main__":
     train_data = dataset_pair(args.root_dir, 'train', img_size, img_size)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
-
     f = os.path.join(os.getcwd(), save_path, 'settingc_latest.pt')
-    config = OmegaConf.load('config_comb.yaml')
+    config = OmegaConf.load('/kaggle/working/VQ-I2I/config_comb.yaml')
     config.model.target = 'taming_comb.models.vqgan.VQModelCrossGAN_ADAIN'
     config.model.base_learning_rate = learning_rate
     config.model.params.embed_dim = args.ed
