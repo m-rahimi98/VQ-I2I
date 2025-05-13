@@ -77,7 +77,7 @@ if __name__ == "__main__":
     # ONLY MODIFY SETTING HERE
     device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
     print('device: ', device)
-    batch_size = 2 # 128
+    batch_size = 1 # 128
     learning_rate = 1e-5       # 256/512 lr=4.5e-6 from 71 epochs
     img_size = 256
     switch_weight = 0.1 # self-reconstruction : a2b/b2a = 10 : 1
