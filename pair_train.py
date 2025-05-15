@@ -9,6 +9,7 @@ import torch.nn.functional as F
 from dataset import dataset_pair
 from torch.utils.data import DataLoader
 import os
+import time 
 
 from taming_comb.modules.style_encoder.network import *
 from taming_comb.modules.diffusionmodules.model import * 
@@ -157,6 +158,7 @@ if __name__ == "__main__":
     # torch.set_default_tensor_type('torch.cuda.FloatTensor')
     
     for epoch in range(args.epoch_start, args.epoch_end+1):
+        epoch_start_time = time.time()
         for i in range(iterations):
 
             dataA, dataB = next(iter(train_loader))
@@ -290,7 +292,11 @@ if __name__ == "__main__":
                 with open(os.path.join(os.getcwd(), save_path, 'loss.txt'), 'a') as f:
                     f.write(_rec)
                     f.close()
-
+                    
+         epoch_end_time = time.time()  # End timing the epoch
+        epoch_duration = epoch_end_time - epoch_start_time
+        print(f"Epoch {epoch} completed in {epoch_duration:.2f} seconds.\n")
+        
         torch.save(
             {
                 'model_state_dict': model.state_dict(),
