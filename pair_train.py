@@ -77,9 +77,9 @@ if __name__ == "__main__":
     # ONLY MODIFY SETTING HERE
     device = torch.device('cuda' if torch.cuda.is_available() else "cpu")
     print('device: ', device)
-    batch_size = 3 # 128
+    batch_size = 1 # 128
     learning_rate = 1e-5       # 256/512 lr=4.5e-6 from 71 epochs
-    img_size = 128
+    img_size = 256
     switch_weight = 0.1 # self-reconstruction : a2b/b2a = 10 : 1
     
     
@@ -90,8 +90,9 @@ if __name__ == "__main__":
     train_data = dataset_pair(args.root_dir, 'train', img_size, img_size)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=True, pin_memory=True)
 
+
     f = os.path.join(os.getcwd(), save_path, 'settingc_latest.pt')
-    config = OmegaConf.load('/kaggle/working/VQ-I2I/config_comb.yaml')
+    config = OmegaConf.load('config_comb.yaml')
     config.model.target = 'taming_comb.models.vqgan.VQModelCrossGAN_ADAIN'
     config.model.base_learning_rate = learning_rate
     config.model.params.embed_dim = args.ed
@@ -99,54 +100,26 @@ if __name__ == "__main__":
     config.model.z_channels = args.z_channel
     config.model.resolution = 256
     model = instantiate_from_config(config.model)
-
-    #changes
-    if torch.cuda.device_count() > 1:
-        print(f"Using {torch.cuda.device_count()} GPUs")
-        model = torch.nn.DataParallel(model)
-    model = model.to(device)
-    
-    # اگر فایل checkpoint موجوده، state_dict رو لود کن
-    if os.path.isfile(f):
+    if(os.path.isfile(f)):
         print('load ' + f)
         ck = torch.load(f, map_location=device)
-        if isinstance(model, torch.nn.DataParallel):
-            model.module.load_state_dict(ck['model_state_dict'], strict=False)
-        else:
-            model.load_state_dict(ck['model_state_dict'], strict=False)
-    model.train() 
-    
+        model.load_state_dict(ck['model_state_dict'], strict=False)
+    model = model.to(device)
+    model.train()
 
     # print(model.loss.discriminator)
     
-    # opt_ae = torch.optim.Adam(list(model.encoder.parameters())+
-    #                             list(model.decoder_a.parameters())+
-    #                             list(model.decoder_b.parameters())+
-    #                             list(model.quantize.parameters())+
-    #                             list(model.quant_conv.parameters())+
-    #                             list(model.post_quant_conv.parameters())+
-    #                             list(model.style_enc_a.parameters())+
-    #                             list(model.style_enc_b.parameters())+
-    #                             list(model.mlp_a.parameters())+
-    #                             list(model.mlp_b.parameters()),
-    #                             lr=learning_rate, betas=(0.5, 0.999))
-
-    # اگر مدل در DataParallel باشه، به model.module ارجاع بده
-    if isinstance(model, torch.nn.DataParallel):
-        model = model.module
-    
     opt_ae = torch.optim.Adam(list(model.encoder.parameters())+
-                              list(model.decoder_a.parameters())+
-                              list(model.decoder_b.parameters())+
-                              list(model.quantize.parameters())+
-                              list(model.quant_conv.parameters())+
-                              list(model.post_quant_conv.parameters())+
-                              list(model.style_enc_a.parameters())+
-                              list(model.style_enc_b.parameters())+
-                              list(model.mlp_a.parameters())+
-                              list(model.mlp_b.parameters()),
-                              lr=learning_rate, betas=(0.5, 0.999))
-
+                                list(model.decoder_a.parameters())+
+                                list(model.decoder_b.parameters())+
+                                list(model.quantize.parameters())+
+                                list(model.quant_conv.parameters())+
+                                list(model.post_quant_conv.parameters())+
+                                list(model.style_enc_a.parameters())+
+                                list(model.style_enc_b.parameters())+
+                                list(model.mlp_a.parameters())+
+                                list(model.mlp_b.parameters()),
+                                lr=learning_rate, betas=(0.5, 0.999))
     
     opt_disc_a = torch.optim.Adam(model.loss_a.discriminator.parameters(),
                                 lr=learning_rate, betas=(0.5, 0.999))
