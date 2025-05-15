@@ -265,7 +265,7 @@ if __name__ == "__main__":
             train_cross_recons_loss.append(cross_recons_loss.item())
 
 
-            if (i+1) % 1000 == 0:
+            if (i+1) % 500 == 0:
                 _rec  = 'epoch {}, {} iterations\n'.format(epoch, i+1)
                 _rec += '(A domain) ae_loss: {:8f}, disc_loss: {:8f}\n'.format(
                             np.mean(train_ae_a_error[-1000:]), np.mean(train_disc_a_error[-1000:]))
