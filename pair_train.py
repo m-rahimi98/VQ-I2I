@@ -293,7 +293,7 @@ if __name__ == "__main__":
                     f.write(_rec)
                     f.close()
                     
-         epoch_end_time = time.time()  # End timing the epoch
+        epoch_end_time = time.time()  # End timing the epoch
         epoch_duration = epoch_end_time - epoch_start_time
         print(f"Epoch {epoch} completed in {epoch_duration:.2f} seconds.\n")
         
